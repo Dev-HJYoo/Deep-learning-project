@@ -5,8 +5,14 @@ import json
 import cv2
 
 
-# pre에 대한 shape을 기준으로 padding 하거나 crop 해서 맞추기!!
+# pre에 대한 shape을 기준으로 padding 하거나 crop 해서 맞추기
 def calcurate_pre_post(pre, post):
+    '''
+
+    :param pre: pre-image numpy
+    :param post: post-image numpy
+    :return: pre-image 에서 post-image를 subtract 한 것. 무조건, pre-image shape에 맞췄다.
+    '''
     # pre/post image 높이와 너비
     pre_h, pre_w = pre.shape[0], pre.shape[1]
     post_h, post_w = post.shape[0], post.shape[1]
@@ -144,7 +150,11 @@ def test_module(p, directory, pre_i, post_i, pre_j, post_j):
 
 def check_scale(scale):
     '''
-
+    손상 정보가 string으로 되어 있어 그것을 int로 변환 하는 함수.
+    no-damage : 0
+    minor-damage : 1
+    major-damage : 2
+    destroyed : 3
     :param scale: 손상 정도에 따른 string 값
     :return: 손상 정도에 따른 int 값
     '''

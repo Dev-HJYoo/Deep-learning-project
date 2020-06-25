@@ -54,13 +54,13 @@ def time_check(name, start, end):
 # requirement.txt 쉽게 만들기
 # https://itinerant.tistory.com/100
 
-if __name__ == '__main__':
+def train():
     start_time = time.time()
     learning_rate = 0.001
     Epoch_num = 50
     Batch_size = 1024
     Resolution = 36
-    save_path = 'save/resnet_18_36x36'
+    save_path = 'save/aa'
 
     # tensorboard 사용법 https://tutorials.pytorch.kr/intermediate/tensorboard_tutorial.html
     writer = SummaryWriter(save_path)
@@ -90,18 +90,15 @@ if __name__ == '__main__':
         load = np.load(train_file, allow_pickle=True)
         tr_x, tr_y = load[0], load[1]
     else:
-        tr_x, tr_y = make_tensor('data/pre_train')
+        tr_x, tr_y = make_tensor(train_path)
         np.save(train_file, np.array([tr_x, tr_y]))
 
     if os.path.isfile(test_file):
         load = np.load(test_file, allow_pickle=True)
         te_x, te_y = load[0], load[1]
     else:
-        te_x, te_y = make_tensor('data/pre_test')
+        te_x, te_y = make_tensor(test_path)
         np.save(test_file, np.array([te_x, te_y]))
-
-    # tr_x, tr_y = make_tensor('data/pre_train')
-    # te_x, te_y = make_tensor('data/pre_test')
 
     processing_time = time.time()
     time_check('processing', start_time, processing_time)
@@ -194,3 +191,6 @@ if __name__ == '__main__':
     test_time = time.time()
     time_check('test', train_time, test_time)
     writer.close()
+
+if __name__ == '__main__':
+    train()
