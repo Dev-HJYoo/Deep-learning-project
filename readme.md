@@ -3,8 +3,9 @@ Check damaged house with subtract between pre image and post image at disaster s
 
 ## 0. Quick start
 
- * a. [download][https://gisto365-my.sharepoint.com/:f:/g/personal/jhdf1234_gm_gist_ac_kr/ElToUUS-rjJNujoKDj0LPqQBWaKCBFpMCvrWK9ceMDojnA?e=2MkbE3] 
- * b. test_module.py 실행
+ * a. (download)[https://gisto365-my.sharepoint.com/:f:/g/personal/jhdf1234_gm_gist_ac_kr/ElToUUS-rjJNujoKDj0LPqQBWaKCBFpMCvrWK9ceMDojnA?e=2MkbE3]
+ * b. 해당 github 다운로드
+ * c. test_module.py 실행
 
  학습된 resnet18로 이미지에 대해 테스트 가능하다.
 ## 1. Dataset
