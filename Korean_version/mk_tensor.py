@@ -1,32 +1,34 @@
-from os import walk, path
+from os import walk, path, makedirs
 import matplotlib.pyplot as plt
 import numpy as np
 import json
+import cv2
 
 
+# pre에 대한 shape을 기준으로 padding 하거나 crop 해서 맞추기
 def calcurate_pre_post(pre, post):
     '''
-    adjust post-image shape to pre-image shape in padding or crop.
+
     :param pre: pre-image numpy
     :param post: post-image numpy
-    :return: adjust post-image shape to pre-image shape. Absolutely, adjust pre-image shape.
+    :return: pre-image 에서 post-image를 subtract 한 것. 무조건, pre-image shape에 맞췄다.
     '''
-    # pre/post image height/width
+    # pre/post image 높이와 너비
     pre_h, pre_w = pre.shape[0], pre.shape[1]
     post_h, post_w = post.shape[0], post.shape[1]
 
     post = np.transpose(post, (2, 0, 1))
 
-    # adjust pre-image height and width to post-image
+    # pre-image 높이와 너비에 맞추기
     new_post = np.zeros((3, pre_h, pre_w))
     for i in range(3):
-        # compare height
+        # 높이 비교
         if pre_h > post_h:
             new_post[i, :post_h, :post_w] = post[i, :, :pre_w]
         elif pre_h < post_h:
             new_post[i, :, :post_w] = post[i, :-(post_h - pre_h), :pre_w]
 
-        # compare width
+        # 너비 비교
         if pre_w > post_w:
             new_post[i, :post_h, :post_w] = post[i, : pre_h, :]
         elif pre_w < post_w:
@@ -37,11 +39,6 @@ def calcurate_pre_post(pre, post):
 
 
 def test_module(p, directory, pre_i, post_i, pre_j, post_j):
-    '''
-
-    Check the image
-    This script is equal to make_tensor function.
-    '''
     pre_i = path.join(p, directory, directory + '_pre_disaster.png')
     post_i = path.join(p, directory, directory + '_post_disaster.png')
     pre_j = path.join(p, directory, directory + '_pre_disaster.json')
@@ -53,18 +50,20 @@ def test_module(p, directory, pre_i, post_i, pre_j, post_j):
     total = []  # pre - post images
     idx = 0  # total images number
 
+    # pre image를 가져오기
     pre = plt.imread(pre_i)
-    with open(pre_j) as labels:  #
+    with open(pre_j) as labels:  # 이렇게 해야 json 파일 연다.
         b = json.load(labels)
 
+    # json 파일에서 xy축 가져오기
     for content in b['features']['xy']:
-
+        # json에서 추출된거 뭔지 알고 싶을 때
         # print(content)
 
-
+        # 점들 뽑기
         Dots = content['wkt'].split('((')[1].split('))')[0].split(',')  # 이건... 노가다의 결과
 
-
+        # 최대 최소점 찾기
         min_x = 2000
         max_x = -1
         min_y = 2000
@@ -78,31 +77,38 @@ def test_module(p, directory, pre_i, post_i, pre_j, post_j):
             min_y = min(min_y, y)
             max_y = max(max_y, y)
 
+        # 최대/최소 점 알고 싶을 때
         # print(min_x, min_y, max_x, max_y)
 
+        # transpose는 잘 놔누기 쉽게 할려고 한거.
         b = pre[min_y:max_y]
         b = np.transpose(b, (1, 0, 2))
         b = b[min_x:max_x]
         b = np.transpose(b, (1, 0, 2))
 
+        # total에 저장 -> 추후에 밑에서 post에서 뺀다.
         total += [b]
         originals += [b]
-
+        # pre 이미지 확인
         # plt.imshow(b)
         # plt.show()
 
+    # 아무것도 안 들어 있을 때 -> 예를들어 처음에 집들이 없는 경우
     if total == []:
         print("This area don't have house.")
         return
 
+    # post image 가져오기 -> 위의 pre image와 똑같다. 단지, total에 저장할 때 pre image와 비교해서 저장한다.
     post = plt.imread(post_i)
     with open(post_j) as labels:
         c = json.load(labels)
 
     for content in c['features']['xy']:
+        # scale의 경우 해당 집이 어떤 피해를 입은지 알려준다.
         scale = content['properties']['subtype']
-        types += [scale]
+        types += [scale]  # 제외
 
+        # 점들 추출 및 최소/최대 점 찾기
         Dots = content['wkt'].split('((')[1].split('))')[0].split(',')
         min_x = 2000
         max_x = -1
@@ -117,45 +123,40 @@ def test_module(p, directory, pre_i, post_i, pre_j, post_j):
             min_y = min(min_y, y)
             max_y = max(max_y, y)
 
+        # 최소점 최대점 로 만들기
         b = post[min_y:max_y]
         b = np.transpose(b, (1, 0, 2))
         b = b[min_x:max_x]
         b = np.transpose(b, (1, 0, 2))
 
-        if total[idx].shape != b.shape:
+        # pre - post 하기 (이게 pre와 post의 차이를 알기위해 하는 것)
+        if total[idx].shape != b.shape:  # 모양이 다른 경우
             total[idx] = calcurate_pre_post(total[idx], b)
         else:
             total[idx] = abs(total[idx] - b)
-        orii += [b]
+        orii += [b]  # 제거
         idx += 1
 
     for to, ors, oi, ty in zip(total, originals, orii, types):
         fig = plt.figure(figsize=(4, 10))
-        fig.suptitle(ty)
-        ax1 = fig.add_subplot(311)
-        ax2 = fig.add_subplot(312)
-        ax3 = fig.add_subplot(313)
-
-        ax1.title.set_text('pre-post image')
-        ax2.title.set_text('pre-image')
-        ax3.title.set_text('post-image')
-
-        ax1.imshow(to)
-        ax2.imshow(ors)
-        ax3.imshow(oi)
-
+        plt.subplot(311)
+        plt.imshow(to)
+        plt.subplot(312)
+        plt.imshow(ors)
+        plt.subplot(313)
+        plt.imshow(oi)
         plt.show()
 
 
 def check_scale(scale):
     '''
-    the degree of damage is string type. So, this script change string to int.
+    손상 정보가 string으로 되어 있어 그것을 int로 변환 하는 함수.
     no-damage : 0
     minor-damage : 1
     major-damage : 2
     destroyed : 3
-    :param scale: According to the degree of damage(string)
-    :return: According to the degree of damgage(int)
+    :param scale: 손상 정도에 따른 string 값
+    :return: 손상 정도에 따른 int 값
     '''
     chk = 0
     if scale == 'no-damage':
@@ -164,50 +165,48 @@ def check_scale(scale):
         chk = 1
     elif scale == 'major-damage':
         chk = 2
-    else:
+    else :
         chk = 3
 
     return chk
 
-
 def make_tensor(p):
     '''
-    According to directory, make a image tensor.
-    (the number of images, Height, Width, Channel)
+
     :param p: directory path
-    :return: (total, total_scale) -> (total image, total degree of damage)
+    :return: (total, total_scale) -> (전체 집 이미지, 전체 집 손상 정도)
     '''
-    # Load all directory below 'p'
+    # p 이하의 디렉토리 다 불러오기 -> next(walk(p))[1]
     a = next(walk(p))[1]
 
-    # The number of house
+    # case 갯수
     i = 0
 
-    # List of all images
+    # 전체 이미지 저장하는 리스트
     total = []
 
-    # List of all damaged scales
+    # 전체 이미지 피해 상황 리스트
     total_scale = []
 
-    # number of testing
-    test_number = 2000
+    # test 넘버
+    test_number = 3000
 
-    # Index number of total value
+    # total의 index number
     idx = 0
 
-    # max/min height and width
+    # max/min 높이와 너비 찾기
     min_h = 1000
     min_w = 1000
     max_h = -1
     max_w = -1
 
-    # Average height and width
+    # 평균 내기
     mean_h = 0
     mean_w = 0
 
-    # start by directory
+    # directory 당 시작.
     '''
-        directory shape
+        directory 모양
         p ---- guatemala-volcano_00000 ---  이름_post_disaster.json
             |                           |
             |                           --  이름_post_disaster.png
@@ -221,28 +220,30 @@ def make_tensor(p):
             ...
     '''
     for directory in a:
-        # Separate each pre/post image and json file
+        # 각각 전/후 이미지와 json 파일 분리
         pre_i = path.join(p, directory, directory + '_pre_disaster.png')
         post_i = path.join(p, directory, directory + '_post_disaster.png')
         pre_j = path.join(p, directory, directory + '_pre_disaster.json')
         post_j = path.join(p, directory, directory + '_post_disaster.json')
 
-        # Get the pre-image
+        # pre image를 가져오기
         pre = plt.imread(pre_i)
 
-        # Open json file
+        # json 파일 open
         with open(pre_j) as labels:
             pre_contents = json.load(labels)
 
-        # Get x, y axis from json file
+        # json 파일에서 xy축 가져오기
         for content in pre_contents['features']['xy']:
-            # Below script is 'json-file content'
+            # json에서 추출된거 뭔지 알고 싶을 때
             # print(content)
 
-            # Pull dots. Because This dataset is annotated in polygon for houses.
-            Dots = content['wkt'].split('((')[1].split('))')[0].split(',')  # The result of hard work....
+            # 점들 뽑기
+            # 본 데이터셋은 집을 다각형으로 annotation 했음.
+            Dots = content['wkt'].split('((')[1].split('))')[0].split(',')  # 이건... 노가다의 결과
 
-            # Search min/max dot and make a square shape for houses.
+            # 최대 최소점 찾기
+            # 사각형으로 만들
             pre_min_x = 2000
             pre_max_x = -1
             pre_min_y = 2000
@@ -256,32 +257,31 @@ def make_tensor(p):
                 pre_min_y = min(pre_min_y, y)
                 pre_max_y = max(pre_max_y, y)
 
-            # Below script is 'min/max dot'.
+            # 최대/최소 점 알고 싶을 때
             # print(min_x, min_y, max_x, max_y)
 
-            # The reason used np.transpose is easily to divide pre-image.
-            c = pre[pre_min_y:pre_max_y]  # (h, w, c)
-            c = np.transpose(c, (1, 0, 2))  # (h, w, c) -> (w, h, c)
-            c = c[pre_min_x:pre_max_x]  # (w, h, c)
-            c = np.transpose(c, (1, 0, 2))  # (w, h, c) -> (h, w, c)
+            # transpose는 잘 놔누기 쉽게 할려고 한거.
+            c = pre[pre_min_y:pre_max_y]
+            c = np.transpose(c, (1, 0, 2))
+            c = c[pre_min_x:pre_max_x]
+            c = np.transpose(c, (1, 0, 2))
 
-            # Store result annotated house to total value. -> Subsequently, it  is subtracted from the below script.
+            # total에 저장 -> 추후에 밑에서 post에서 뺀다.
             total += [c]
 
-            # Check the annotated house.
-            # plt.imshow(c)
+            # pre 이미지 확인
+            # plt.imshow(b)
             # plt.show()
 
-        # current pre-image don't have houses ->  e.g first image don't have houses.
+        # 아무것도 안 들어 있을 때 -> 예를들어 처음 이미지에 집이 없는 경우
         if total == []:
             i += 1
             continue
 
-        # Check the index and pre-image being processing.
+        # 인덱스와 현재 전처리 중인 것 확인할 때
         # print(i, pre_i)
 
-        # Get the post-image. it is equal to above pre-image.
-        # But, when total value is stored, compare to pre-image.
+        # post-image 가져오기 -> 위의 pre-image 와 똑같다. 단지, total에 저장할 때 pre-image 와 비교해서 저장한다.
         post = plt.imread(post_i)
         with open(post_j) as labels:
             post_contents = json.load(labels)
@@ -290,14 +290,14 @@ def make_tensor(p):
             # scale의 경우 해당 집이 어떤 피해를 입은지 알려준다.
             scale = content['properties']['subtype']
 
-            # Except to no-annotation
+            # annotation 안 된것은 제외
             # https://wikidocs.net/16040
             if scale == 'un-classified':
                 del total[idx]
                 continue
             total_scale += [check_scale(scale)]
 
-            # Extract dots and search min/max dot
+            # 점들 추출 및 최소/최대 점 찾기
             post_Dots = content['wkt'].split('((')[1].split('))')[0].split(',')
             min_x = 2000
             max_x = -1
@@ -315,41 +315,41 @@ def make_tensor(p):
             mean_h += max_y - min_y
             mean_w += max_x - min_x
 
-            # Make min/max dot
+            # 최소점 최대점 로 만들기
             b = post[min_y:max_y]
             b = np.transpose(b, (1, 0, 2))
             b = b[min_x:max_x]
             b = np.transpose(b, (1, 0, 2))
 
-            # Check the post-image
+            # post 이미지 확인
             # plt.imshow(b)
             # plt.show()
 
-            # subtract pre and post (to check difference between pre and post)
+            # pre - post 하기 (이게 pre와 post의 차이를 알기위해 하는 것)
             if total[idx].shape != b.shape:  # 모양이 다른 경우
                 total[idx] = calcurate_pre_post(total[idx], b)
             else:
                 total[idx] = abs(total[idx] - b)
             idx += 1
 
-        # Check the pre/post image and json file
+        # image와 json 파일 확인
         # print(pre_i, post_i, pre_j, post_j)
 
-        # Test module
+        # 테스트 모듈
         if i == test_number:
             test_module(p, directory, pre_i, post_i, pre_j, post_j)
 
-        min_h = min(min_h, total[idx - 1].shape[0])
-        min_w = min(min_w, total[idx - 1].shape[1])
-        max_h = max(max_h, total[idx - 1].shape[0])
-        max_w = max(max_w, total[idx - 1].shape[1])
+        min_h = min(min_h, total[idx-1].shape[0])
+        min_w = min(min_w, total[idx-1].shape[1])
+        max_h = max(max_h, total[idx-1].shape[0])
+        max_w = max(max_w, total[idx-1].shape[1])
         i += 1
 
-        # Check if the height or width is '0'
-        if total[idx - 1].shape[0] <= 0 or total[idx - 1].shape[1] <= 0:
+        # 높이나 너빅 0 인 경우를 확인 하는 것.
+        if total[idx-1].shape[0] <= 0 or total[idx-1].shape[1] <= 0:
             print(pre_i)
-            print(total[idx - 1].shape[0])
-            print(total[idx - 1].shape[1])
+            print(total[idx-1].shape[0])
+            print(total[idx-1].shape[1])
             print('pre', pre_min_y, pre_max_y, pre_min_x, pre_max_x)
             print('post', min_y, max_y, min_x, max_x)
             print(post_Dots)

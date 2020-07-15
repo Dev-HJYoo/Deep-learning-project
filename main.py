@@ -4,26 +4,24 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import transforms
 import torchvision.models as models
-import matplotlib.pyplot as plt
 import numpy as np
-import copy
 import time
 from PIL import Image
 
 # https://medium.com/@umerfarooq_26378/model-summary-in-pytorch-b5a1e4b64d25
-# tf의 summary 같은 기능을 위해서 추가
+# Add for summary function fo tensorflow.
 from torchsummary import summary
 
-# folder에 있는 image 와 label로 데이테셋 가져 오기
+# This script is to get image and label from folder
 from mk_tensor import make_tensor
 
-# 저장을 위해서 선언
+# It is to store model.
 from torch.utils.tensorboard import SummaryWriter
 import os
 
 
 # https://data-panic.tistory.com/21
-# 위 사이트 참고해서 custom dataset 만듬
+# Make custom dataset referring above URL.
 class CustomDataset(Dataset):
     def __init__(self, x, y, x_transform):
         self.x = x
@@ -37,12 +35,11 @@ class CustomDataset(Dataset):
 
         # https://stackoverflow.com/questions/60138697/typeerror-cannot-handle-this-data-type-1-1-3-f4
         # https://discuss.pytorch.org/t/typeerror-pic-should-be-pil-image-or-ndarray-got-class-numpy-ndarray/20134
-        # 위 사이트 참고함
+        # Refer above URL
         x = Image.fromarray((self.x[item] * 255).astype(np.uint8))
         x = self.x_transform(x)
 
         # https://discuss.pytorch.org/t/runtimeerror-expected-object-of-scalar-type-long-but-got-scalar-type-float-when-using-crossentropyloss/30542
-        # int가 없다고 뜨는 에러 발생해서 찾아본
         y = self.y[item]
 
         return x, y
@@ -51,7 +48,7 @@ class CustomDataset(Dataset):
 def time_check(name, start, end):
     print("{} time : {:0.3f}".format(name, end - start))
 
-# requirement.txt 쉽게 만들기
+# Easily make 'requirement.txt'
 # https://itinerant.tistory.com/100
 
 def train():
@@ -60,9 +57,10 @@ def train():
     Epoch_num = 50
     Batch_size = 1024
     Resolution = 36
-    save_path = 'save/aa'
+    save_path = 'save/'
 
-    # tensorboard 사용법 https://tutorials.pytorch.kr/intermediate/tensorboard_tutorial.html
+    # https://tutorials.pytorch.kr/intermediate/tensorboard_tutorial.html
+    # The direction for tensorboard
     writer = SummaryWriter(save_path)
     writer.add_scalar('epoch', Epoch_num)
     writer.add_scalar('batch size', Batch_size)
@@ -78,8 +76,11 @@ def train():
                                        transforms.ToTensor(),
                                        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
 
-    # npy 저장 및 불러오기 https://gldmg.tistory.com/43
-    # file 존재 유무 https://wikidocs.net/14304
+    # https://gldmg.tistory.com/43
+    # This reference is to store and get .npy file
+
+    # https://wikidocs.net/14304
+    # Check if the file is located.
     train_path = 'data/pre_train'
     train_file = 'data/train.npy'
 
@@ -112,6 +113,7 @@ def train():
     loader_time = time.time()
     time_check('loading', processing_time, loader_time)
 
+    # model
     model = models.resnet18()
 
     model.fc = nn.Linear(512, 4)
@@ -123,8 +125,8 @@ def train():
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+    # Start training
     model.train()
-
     for epoch in range(Epoch_num):
         train_loss = 0
         correct = 0

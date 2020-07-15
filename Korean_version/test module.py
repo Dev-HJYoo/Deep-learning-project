@@ -13,30 +13,23 @@ import copy
 import os
 from mk_tensor import make_tensor
 
-
 def calcurate_pre_post(pre, post):
-    '''
-    adjust post-image shape to pre-image shape in padding or crop.
-    :param pre: pre-image numpy
-    :param post: post-image numpy
-    :return: adjust post-image shape to pre-image shape. Absolutely, adjust pre-image shape.
-    '''
-    # pre/post image height/width
+    # pre/post image 높이와 너비
     pre_h, pre_w = pre.shape[0], pre.shape[1]
     post_h, post_w = post.shape[0], post.shape[1]
 
     post = np.transpose(post, (2, 0, 1))
 
-    # adjust pre-image height and width to post-image
+    # pre-image 높이와 너비에 맞추기
     new_post = np.zeros((3, pre_h, pre_w))
     for i in range(3):
-        # compare height
+        # 높이 비교
         if pre_h > post_h:
             new_post[i, :post_h, :post_w] = post[i, :, :pre_w]
         elif pre_h < post_h:
             new_post[i, :, :post_w] = post[i, :-(post_h - pre_h), :pre_w]
 
-        # compare width
+        # 너비 비교
         if pre_w > post_w:
             new_post[i, :post_h, :post_w] = post[i, : pre_h, :]
         elif pre_w < post_w:
@@ -45,16 +38,11 @@ def calcurate_pre_post(pre, post):
     new_post = np.transpose(new_post, (1, 2, 0))
     return abs(pre - new_post)
 
-
 def check_scale(scale):
     '''
-    the degree of damage is string type. So, this script change string to int.
-    no-damage : 0
-    minor-damage : 1
-    major-damage : 2
-    destroyed : 3
-    :param scale: According to the degree of damage(string)
-    :return: According to the degree of damgage(int)
+
+    :param scale: 손상 정도에 따른 string 값
+    :return: 손상 정도에 따른 int 값
     '''
     chk = 0
     if scale == 'no-damage':
@@ -68,7 +56,6 @@ def check_scale(scale):
 
     return chk
 
-
 class CustomDataset(Dataset):
     def __init__(self, x, y, x_transform):
         self.x = x
@@ -79,33 +66,34 @@ class CustomDataset(Dataset):
         return len(self.x)
 
     def __getitem__(self, item):
+
         # https://stackoverflow.com/questions/60138697/typeerror-cannot-handle-this-data-type-1-1-3-f4
         # https://discuss.pytorch.org/t/typeerror-pic-should-be-pil-image-or-ndarray-got-class-numpy-ndarray/20134
-        # Refer above URL
+        # 위 사이트 참고함
         x = Image.fromarray((self.x[item] * 255).astype(np.uint8))
         x = self.x_transform(x)
 
         # https://discuss.pytorch.org/t/runtimeerror-expected-object-of-scalar-type-long-but-got-scalar-type-float-when-using-crossentropyloss/30542
-        # Error is 'No INT'
+        # int가 없다고 뜨는 에러 발생해서 찾아본
         y = self.y[item]
 
         return x, y
 
-
 def deprocess(img):
     transform = transforms.Compose([
-        transforms.Normalize(mean=(0, 0, 0), std=(1 / 0.2023, 1 / 0.1994, 1 / 0.2010)),
+        transforms.Normalize(mean=(0, 0, 0), std=(1/0.2023,1/0.1994,1/0.2010)),
         transforms.Normalize(mean=(-0.4914, -0.4822, -0.4465), std=(1, 1, 1)),
         transforms.ToPILImage(),
     ])
     return transform(img)
 
 
+
 def True_image_check(p):
     '''
-    Function for inference.
-    :param p: test directory path.
-    :return: nothing.
+    Inference를 위한 함수
+    :param p:
+    :return:
     '''
     d = next(walk(p))[1]
 
@@ -126,18 +114,20 @@ def True_image_check(p):
         pre_store_dots = []
         post_store_dots = []
 
-        # Get the pre-image
+        # pre image를 가져오기
         pre = plt.imread(pre_i)
-        with open(pre_j) as labels:
+        with open(pre_j) as labels:  # 이렇게 해야 json 파일 연다.
             b = json.load(labels)
 
-        # Get the x, y axis from json file.
+        # json 파일에서 xy축 가져오기
         for content in b['features']['xy']:
+            # json에서 추출된거 뭔지 알고 싶을 때
             # print(content)
 
-            Dots = content['wkt'].split('((')[1].split('))')[0].split(',')
+            # 점들 뽑기
+            Dots = content['wkt'].split('((')[1].split('))')[0].split(',')  # 이건... 노가다의 결과
 
-            # Search min/max dot
+            # 최대 최소점 찾기
             min_x = 2000
             max_x = -1
             min_y = 2000
@@ -151,39 +141,45 @@ def True_image_check(p):
                 min_y = min(min_y, y)
                 max_y = max(max_y, y)
             pre_store_dots += [[min_x, min_y, max_x, max_y]]
-
+            # 최대/최소 점 알고 싶을 때
             # print(min_x, min_y, max_x, max_y)
 
+            # transpose는 잘 놔누기 쉽게 할려고 한거.
             b = pre[min_y:max_y]
             b = np.transpose(b, (1, 0, 2))
             b = b[min_x:max_x]
             b = np.transpose(b, (1, 0, 2))
 
+            # total에 저장 -> 추후에 밑에서 post에서 뺀다.
             total += [b]
             originals += [b]
-
+            # pre 이미지 확인
             # plt.imshow(b)
             # plt.show()
 
+        # 아무것도 안 들어 있을 때 -> 예를들어 처음에 집들이 없는 경우
         if total == []:
             print("This area don't have house.")
             return
 
+        # post image 가져오기 -> 위의 pre image와 똑같다. 단지, total에 저장할 때 pre image와 비교해서 저장한다.
         post = plt.imread(post_i)
         with open(post_j) as labels:
             c = json.load(labels)
 
         for content in c['features']['xy']:
+            # scale의 경우 해당 집이 어떤 피해를 입은지 알려준다.
             scale = content['properties']['subtype']
 
-            # Except to un-classified
+            # un-classified 제외
             if scale == 'un-classified':
                 del total[idx]
                 del originals[idx]
                 del pre_store_dots[idx]
                 continue
-            types += [scale]
+            types += [scale]  # scale 추가
 
+            # 점들 추출 및 최소/최대 점 찾기
             Dots = content['wkt'].split('((')[1].split('))')[0].split(',')
             min_x = 2000
             max_x = -1
@@ -199,15 +195,14 @@ def True_image_check(p):
                 max_y = max(max_y, y)
 
             post_store_dots += [[min_x, min_y, max_x, max_y]]
-
-            # Make the min/max dot
+            # 최소점 최대점 로 만들기
             b = post[min_y:max_y]
             b = np.transpose(b, (1, 0, 2))
             b = b[min_x:max_x]
             b = np.transpose(b, (1, 0, 2))
 
-            # Subtract pre-image and post-image
-            if total[idx].shape != b.shape:  # if shape is different.
+            # pre - post 하기 (이게 pre와 post의 차이를 알기위해 하는 것)
+            if total[idx].shape != b.shape:  # 모양이 다른 경우
                 total[idx] = calcurate_pre_post(total[idx], b)
             else:
                 total[idx] = abs(total[idx] - b)
@@ -217,11 +212,11 @@ def True_image_check(p):
         pre_image = cv2.imread(pre_i)
         post_image = cv2.imread(post_i)
 
-        # Print total image.
-        # It is to draw the square into house of image.
+        # 전체 이미지 출력
+        # 이미지에서 사각형으로 집을 그린다.
         for pre_dot, post_dot, type in zip(pre_store_dots, post_store_dots, types):
             # https://stackoverflow.com/questions/32673359/systemerror-new-style-getargs-format-but-argument-is-not-a-tuple
-            # Abolutely, make the tuple type.
+            # 무조건 tuple로 만들어야 함.
             pre_min = (pre_dot[0], pre_dot[1])
             pre_max = (pre_dot[2], pre_dot[3])
             pre_image = cv2.rectangle(pre_image, pre_min, pre_max, (0, 255, 0), 2)
@@ -262,7 +257,7 @@ def True_image_check(p):
         model = torch.load(p + '/model.pt')
         model.eval()
 
-        # print each house
+        # 집마다 각각 출력
         idx = 0
         for to, ors, oi, ty in zip(total, originals, orii, types):
             # saliency map
@@ -291,7 +286,7 @@ def True_image_check(p):
             o = deprocess(img)
             o = np.asarray(o)
 
-            # Check the image.
+            # 이미지 출력
             fig = plt.figure(figsize=(10, 10))
             fig.suptitle(ty)
             ax1 = fig.add_subplot(531)
@@ -312,7 +307,7 @@ def True_image_check(p):
             plt.show()
             idx += 1
 
-        # Start testing
+        # 테스트 시작
         test_loss = 0
         correct = 0
         total = 0
@@ -342,12 +337,13 @@ def True_image_check(p):
 
         result = result.cpu().numpy()
         for post_dot, type in zip(post_store_dots, result):
+
             post_min = (post_dot[0], post_dot[1])
             post_max = (post_dot[2], post_dot[3])
             scale_dot = (post_dot[0] + 20, post_dot[1] + 20)
             prediction_image = cv2.rectangle(prediction_image, post_min, post_max, (255, 0, 0), 2)
             prediction_image = cv2.putText(prediction_image, str(type), scale_dot, cv2.FONT_HERSHEY_SIMPLEX, 1,
-                                           (255, 0, 255), 3)
+                                     (255, 0, 255), 3)
 
         fig = plt.figure(figsize=(10, 10))
         fig.suptitle("Ground Truth vs Prediction\n0: No-damage  1: minor-damage  2: major-damage  3: destroyed")
@@ -359,12 +355,11 @@ def True_image_check(p):
         ax2.imshow(prediction_image)
         plt.show()
 
-
 def test(p, Resolution):
     '''
-    Trained model is tested to dataset(Test)
-    :param p: Path of trained model
-    :param Resolution: Resolution of trained model
+    학습된 모델을 test set에 넣어 보는 함수
+    :param p: 학습된 모델의 path
+    :param Resolution: 학습된 모델의 resolution
     :return:
     '''
     test_path = 'data/pre_test'
@@ -413,7 +408,6 @@ def test(p, Resolution):
     acc = 100 * correct / total
 
     print('Evaluation - Loss : %.2f, Accuracy : %.2f' % (loss, acc))
-
 
 if __name__ == '__main__':
     True_image_check('test')

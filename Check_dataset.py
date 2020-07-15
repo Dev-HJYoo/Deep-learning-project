@@ -13,6 +13,7 @@ def check_class(p):
     '''
     a = next(walk(p))[1]
     d = dict()
+    number = 0
     for directory in a:
         post_j = path.join(p, directory, directory + '_post_disaster.json')
 
@@ -22,12 +23,13 @@ def check_class(p):
         for content in c['features']['xy']:
             # scale의 경우 해당 집이 어떤 피해를 입은지 알려준다.
             scale = content['properties']['subtype']
-
+            number += 1
             if scale in d:
                 d[scale] += 1
             else:
                 d[scale] = 1
 
+    print(number)
     print(d.items())
     labels = d.keys()
     values = d.values()
@@ -41,6 +43,7 @@ def check_class(p):
         ax.annotate("%d" % (height), (left + width / 2, height * 1.01), ha='center')
     ax.set_title('The number of class')
     plt.show()
+
 
 def check_shape(p):
     '''
@@ -111,5 +114,5 @@ def check_shape(p):
     plt.show()
 
 if __name__ == '__main__':
-    check_class('data/pre_train')
+    # check_class('data/pre_train')
     check_shape('data/pre_train')
